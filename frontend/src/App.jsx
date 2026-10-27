@@ -1,177 +1,42 @@
 
 import { useEffect, useState } from "react";
-import {
-  Activity, ArrowRight, Bell, Bookmark, BriefcaseBusiness,
-  CheckCircle2, Clock3, ExternalLink, FileUser, LayoutDashboard,
-  MapPin, Search, Settings, Sparkles, Target, Upload, RefreshCw,
-  AlertCircle, Globe, BrainCircuit, FileText, X,
-} from "lucide-react";
 import "./App.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
-const platforms = [
-  { id: "remotive", label: "Remotive", mode: "Live API" },
-  { id: "internshala", label: "Internshala", mode: "Website search" },
-  { id: "indeed", label: "Indeed", mode: "Website search" },
-];
+const initialSearch = "machine learning internship";
+
+function formatDate(date) {
+  if (!date) return "Date not provided";
+
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return date;
+
+  return parsed.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 function App() {
-  const [query, setQuery] = useState("machine learning internship");
-  const [search, setSearch] = useState("machine learning internship");
-  const [activePlatform, setActivePlatform] = useState("remotive");
+  const [activePlatform, setActivePlatform] = useState("Remotive");
+  const [search, setSearch] = useState(initialSearch);
   const [jobs, setJobs] = useState([]);
-  const [saved, setSaved] = useState([]);
-  const [apiStatus, setApiStatus] = useState("Checking...");
-  const [resumeName, setResumeName] = useState("");
-  const [resumeText, setResumeText] = useState("");
-  const [resumeSkills, setResumeSkills] = useState([]);
-  const [resumeLoading, setResumeLoading] = useState(false);
-  const [resumeError, setResumeError] = useState("");
-  const [resumeReady, setResumeReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [resume, setResume] = useState(null);
+  const [resumeSkills, setResumeSkills] = useState([]);
+  const [resumeName, setResumeName] = useState("");
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeError, setResumeError] = useState("");
   const [matches, setMatches] = useState({});
-  const [matchingId, setMatchingId] = useState(null);
-  const [showResumeDetails, setShowResumeDetails] = useState(false);
+  const [matchingJob, setMatchingJob] = useState("");
+  const [savedJobs, setSavedJobs] = useState([]);
+  const [totalMatches, setTotalMatches] = useState(0);
 
-  useEffect(() => {
-    fetch(`${API_URL}/health`)
-      .then((r) => {
-        if (!r.ok) throw new Error("Backend unavailable");
-        return r.json();
-      })
-      .then((data) =>
-        setApiStatus(data.status === "healthy" ? "Connected" : "Unavailable")
-      )
-      .catch(() => setApiStatus("Offline"));
-
-    fetchJobs("machine learning internship");
-  }, []);
-
-  async function fetchJobs(term) {
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await fetch(
-        `${API_URL}/api/jobs?q=${encodeURIComponent(term)}&limit=20`
-      );
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Job search failed.");
-      }
-
-      setJobs(data.jobs || []);
-      setSearch(term);
-      setApiStatus("Connected");
-    } catch (err) {
-      setJobs([]);
-      setError(
-        err.message === "Failed to fetch"
-          ? "Cannot reach the backend. Make sure FastAPI is running."
-          : err.message
-      );
-      setApiStatus("Offline");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function uploadResume(file) {
-    if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setResumeError("Please choose a PDF resume.");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      setResumeError("Your PDF must be 5 MB or smaller.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    setResumeLoading(true);
-    setResumeError("");
-    setResumeReady(false);
-    setMatches({});
-
-    try {
-      const response = await fetch(`${API_URL}/api/resume/analyze`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Resume analysis failed.");
-      }
-
-      setResumeName(file.name);
-      setResumeText(data.resume_text || "");
-      setResumeSkills(data.skills || []);
-      setResumeReady(true);
-      setShowResumeDetails(true);
-    } catch (err) {
-      setResumeError(
-        err.message === "Failed to fetch"
-          ? "Could not connect to the backend."
-          : err.message
-      );
-    } finally {
-      setResumeLoading(false);
-    }
-  }
-
-  async function calculateJobMatch(job) {
-    if (!resumeReady || !resumeText) {
-      setResumeError("Upload and analyze your PDF resume first.");
-      setShowResumeDetails(true);
-      return;
-    }
-
-    setMatchingId(job.id);
-    setError("");
-
-    try {
-      const jobText = [
-        job.title,
-        job.company,
-        job.category,
-        job.job_type,
-        job.location,
-        job.description,
-      ].filter(Boolean).join("\n");
-
-      const response = await fetch(`${API_URL}/api/jobs/match`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resume_text: resumeText,
-          job_text: jobText,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Could not calculate the match.");
-      }
-
-      setMatches((current) => ({ ...current, [job.id]: data }));
-    } catch (err) {
-      setError(err.message || "Could not calculate the match.");
-    } finally {
-      setMatchingId(null);
-    }
-  }
-
-  function handleSearch(event) {
-    event.preventDefault();
+  async function fetchJobs(query = search) {
     const term = query.trim();
 
     if (term.length < 2) {
@@ -179,438 +44,554 @@ function App() {
       return;
     }
 
-    setSearch(term);
-    setMatches({});
+    setLoading(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const url = new URL(`${API_BASE}/api/jobs`);
+      url.searchParams.set("q", term);
+      url.searchParams.set("limit", "30");
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || "Unable to load jobs.");
+      }
+
+      const data = await response.json();
+      setJobs(data.jobs || []);
+      setTotalMatches(data.total_matches ?? data.count ?? 0);
+      setNotice(data.notice || "");
+      setSearch(query);
+    } catch (err) {
+      setJobs([]);
+      setTotalMatches(0);
+      setError(
+        `${err.message} Make sure the FastAPI backend is running at ${API_BASE}.`
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchJobs(initialSearch);
+    // Load the initial results once when the dashboard opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleSearch(event) {
+    event.preventDefault();
+
+    if (activePlatform === "Remotive") {
+      await fetchJobs(search);
+    } else {
+      const url = new URL(`${API_BASE}/api/platforms`);
+      url.searchParams.set("q", search.trim());
+
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Could not prepare platform search.");
+        }
+
+        const selected = data.platforms.find(
+          (platform) => platform.name === activePlatform
+        );
+
+        if (selected) window.open(selected.url, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        setError(err.message);
+      }
+    }
+  }
+
+  async function handleResumeUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setResumeError("");
+    setResumeSkills([]);
+
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setResumeError("Please select a PDF resume.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setResumeError("Your PDF must be 5 MB or smaller.");
+      event.target.value = "";
+      return;
+    }
+
+    setResume(file);
+    setResumeName(file.name);
+    setResumeLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`${API_BASE}/api/resume/analyze`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Resume analysis failed.");
+      }
+
+      setResumeSkills(data.skills || []);
+    } catch (err) {
+      setResumeError(err.message);
+      setResume(null);
+      setResumeName("");
+    } finally {
+      setResumeLoading(false);
+      event.target.value = "";
+    }
+  }
+
+  async function calculateJobMatch(job) {
+    if (!resume) {
+      setResumeError("Upload your PDF resume before calculating a match.");
+      return;
+    }
+
+    setMatchingJob(job.id);
     setError("");
 
-    if (activePlatform === "remotive") {
-      fetchJobs(term);
+    try {
+      const response = await fetch(`${API_BASE}/api/jobs/match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          job_text: [
+            job.title,
+            job.company,
+            job.category,
+            job.description,
+            ...(job.tags || []),
+          ].join("\n"),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Could not calculate job match.");
+      }
+
+      setMatches((previous) => ({ ...previous, [job.id]: data }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setMatchingJob("");
     }
   }
 
-  function externalUrl(platform) {
-    const term = (search || query || "internship").trim();
+  function toggleSaved(job) {
+    setSavedJobs((previous) => {
+      const alreadySaved = previous.some((item) => item.id === job.id);
 
-    if (platform === "internshala") {
-      const slug = encodeURIComponent(term).replace(/%20/g, "-");
-      return `https://internshala.com/internships/keywords-${slug}/`;
-    }
+      if (alreadySaved) {
+        return previous.filter((item) => item.id !== job.id);
+      }
 
-    return `https://in.indeed.com/jobs?q=${encodeURIComponent(term)}&l=India`;
+      return [...previous, job];
+    });
   }
 
-  function toggleSaved(id) {
-    setSaved((current) =>
-      current.includes(id)
-        ? current.filter((savedId) => savedId !== id)
-        : [...current, id]
-    );
-  }
+  const displayedJobs =
+    activePlatform === "Saved" ? savedJobs : jobs;
 
-  const isExternal = activePlatform !== "remotive";
-  const currentPlatform = platforms.find((p) => p.id === activePlatform);
+  const platformItems = [
+    { name: "Remotive", icon: "◈", description: "Live remote listings" },
+    { name: "Internshala", icon: "↗", description: "Open platform search" },
+    { name: "Indeed", icon: "↗", description: "Open platform search" },
+  ];
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#">
-          <span className="brand-mark"><Target size={23} /></span>
-          <span>
-            <strong>InternMatch AI</strong>
-            <small>AI CAREER STUDIO</small>
-          </span>
-        </a>
+        <div className="brand">
+          <div className="brand-icon">✦</div>
+          <div>
+            <h1>InternMatch <span>AI</span></h1>
+            <p>YOUR CAREER COPILOT</p>
+          </div>
+        </div>
 
-        <p className="workspace-label">WORKSPACE</p>
+        <div className="sidebar-label">WORKSPACE</div>
 
-        <nav className="side-nav">
-          <button className="nav-item active" type="button">
-            <LayoutDashboard size={18} /> Overview
-          </button>
+        <button
+          className={`nav-item ${activePlatform !== "Saved" ? "active" : ""}`}
+          onClick={() => setActivePlatform("Remotive")}
+        >
+          <span>▦</span> Discover jobs
+        </button>
+
+        <button
+          className={`nav-item ${activePlatform === "Saved" ? "active" : ""}`}
+          onClick={() => setActivePlatform("Saved")}
+        >
+          <span>♡</span> Saved jobs
+          <span className="nav-count">{savedJobs.length}</span>
+        </button>
+
+        <div className="sidebar-label platform-label">JOB SOURCES</div>
+
+        {platformItems.map((platform) => (
           <button
-            className="nav-item"
-            type="button"
-            onClick={() => document.querySelector(".jobs-section")?.scrollIntoView({ behavior: "smooth" })}
+            key={platform.name}
+            className={`source-item ${
+              activePlatform === platform.name ? "source-active" : ""
+            }`}
+            onClick={() => {
+              setActivePlatform(platform.name);
+              setError("");
+            }}
           >
-            <Search size={18} /> Find opportunities
+            <span className="source-icon">{platform.icon}</span>
+            <span className="source-text">
+              <strong>{platform.name}</strong>
+              <small>{platform.description}</small>
+            </span>
+            <span className="source-arrow">›</span>
           </button>
-          <button
-            className="nav-item"
-            type="button"
-            onClick={() => document.querySelector(".resume-panel")?.scrollIntoView({ behavior: "smooth" })}
-          >
-            <FileUser size={18} /> Resume analysis
-          </button>
-          <button
-            className="nav-item"
-            type="button"
-            onClick={() => document.querySelector(".jobs-section")?.scrollIntoView({ behavior: "smooth" })}
-          >
-            <BriefcaseBusiness size={18} /> Saved jobs
-            {saved.length > 0 && <span className="nav-count">{saved.length}</span>}
-          </button>
-        </nav>
+        ))}
 
         <div className="sidebar-bottom">
-          <div className="profile-card">
-            <div className="profile-avatar">IM</div>
-            <div className="profile-text">
-              <strong>Your profile</strong>
-              <span>{resumeReady ? "Resume analyzed" : "Build your career"}</span>
+          <div className="ai-status">
+            <span className="status-dot" />
+            <div>
+              <strong>AI engine</strong>
+              <small>Ready to match</small>
             </div>
-            <Settings size={17} />
           </div>
-          <div className="sidebar-help">
-            <CheckCircle2 size={16} /> AI career studio · v0.4
-          </div>
+          <p className="sidebar-footnote">Built for your next opportunity.</p>
         </div>
       </aside>
 
-      <main className="main-panel">
+      <main className="main-content">
         <header className="topbar">
-          <div className="breadcrumbs">Workspace / <strong>Overview</strong></div>
-          <div className="topbar-actions">
-            <span className={`connection ${apiStatus === "Connected" ? "connected" : ""}`}>
-              <span className="status-dot" /> API {apiStatus}
-            </span>
-            <button className="icon-button" type="button" aria-label="Notifications">
-              <Bell size={19} />
-            </button>
-            <div className="top-avatar">IM</div>
+          <div>
+            <div className="breadcrumb">WORKSPACE <span>/</span> DISCOVER</div>
+            <h2>
+              {activePlatform === "Saved"
+                ? "Your saved jobs"
+                : "Find your next opportunity"}
+            </h2>
+            <p className="page-subtitle">
+              Discover roles. Match your skills. Take the next step.
+            </p>
+          </div>
+          <div className="topbar-badge">
+            <span>✦</span> AI-powered job discovery
           </div>
         </header>
 
-        <div className="content">
-          <section className="welcome-row">
-            <div>
-              <div className="eyebrow">
-                <Sparkles size={15} /> YOUR AI CAREER ASSISTANT
+        <section className="hero-card">
+          <div className="hero-copy">
+            <div className="eyebrow"><span /> YOUR CAREER, ACCELERATED</div>
+            <h3>Less searching.<br />More <span>matching.</span></h3>
+            <p>
+              Search opportunities and use AI to understand how your resume
+              aligns with each job description.
+            </p>
+          </div>
+          <div className="hero-art" aria-hidden="true">
+            <div className="orbit orbit-one" />
+            <div className="orbit orbit-two" />
+            <div className="hero-star">✦</div>
+            <div className="hero-mini-card">
+              <span className="mini-sparkle">✦</span>
+              <div>
+                <strong>AI Match</strong>
+                <small>Skills analyzed</small>
               </div>
-              <h1>Find work that fits <span>your potential.</span></h1>
-              <p className="subtitle">
-                Discover opportunities and compare them with your resume using AI.
-              </p>
+              <span className="mini-check">✓</span>
             </div>
+            <div className="floating-dot dot-one" />
+            <div className="floating-dot dot-two" />
+          </div>
+        </section>
 
-            <label className="resume-button">
-              <Upload size={17} />
-              {resumeLoading ? "Analyzing..." : resumeReady ? "Change resume" : "Upload resume"}
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                disabled={resumeLoading}
-                onChange={(event) => {
-                  uploadResume(event.target.files?.[0]);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-          </section>
-
-          <form className="search-panel" onSubmit={handleSearch}>
-            <div className="search-field">
-              <Search size={20} />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search internships, Python, AI, data science..."
-              />
+        <section className="search-panel">
+          <div className="section-heading">
+            <div>
+              <h3>Search opportunities</h3>
+              <p>Try a role, skill, or technology.</p>
             </div>
-            <div className="search-divider" />
-            <div className="location-field"><MapPin size={18} /> India / Remote</div>
-            <button className="search-button" type="submit" disabled={loading}>
-              {loading && !isExternal ? "Searching..." : "Search jobs"}
-              {loading && !isExternal ? <RefreshCw size={17} /> : <ArrowRight size={17} />}
+            <span className="live-indicator"><span /> SEARCH</span>
+          </div>
+
+          <form className="search-form" onSubmit={handleSearch}>
+            <span className="search-icon">⌕</span>
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="e.g. Python, machine learning, data science..."
+              aria-label="Search job listings"
+            />
+            <button type="submit" disabled={loading}>
+              {loading && activePlatform === "Remotive" ? "Searching..." : "Search jobs"}
+              <span>→</span>
             </button>
           </form>
 
-          {resumeError && (
-            <div className="notice error-notice">
-              <AlertCircle size={18} />
-              <span>{resumeError}</span>
-              <button type="button" onClick={() => setResumeError("")} aria-label="Dismiss">
-                <X size={16} />
+          <div className="quick-searches">
+            <span>POPULAR:</span>
+            {["python", "machine learning", "data science", "AI"].map((term) => (
+              <button
+                key={term}
+                type="button"
+                onClick={() => {
+                  setSearch(term);
+                  if (activePlatform === "Remotive") fetchJobs(term);
+                }}
+              >
+                {term}
               </button>
-            </div>
-          )}
+            ))}
+          </div>
+        </section>
 
-          <section className="stats-grid">
-            <article className="stat-card">
-              <div className="stat-top"><span>Live Remotive results</span><BriefcaseBusiness size={19} /></div>
-              <strong>{loading ? "…" : jobs.length}</strong>
-              <small>Results for the current search</small>
-            </article>
-            <article className="stat-card">
-              <div className="stat-top"><span>Active platform</span><Globe size={19} /></div>
-              <strong className="profile-status">{currentPlatform?.label}</strong>
-              <small>{currentPlatform?.mode}</small>
-            </article>
-            <article className="stat-card">
-              <div className="stat-top"><span>Saved jobs</span><Bookmark size={19} /></div>
-              <strong>{saved.length}</strong>
-              <small>Saved in this session</small>
-            </article>
-            <article className="stat-card">
-              <div className="stat-top"><span>Resume status</span><FileUser size={19} /></div>
-              <strong className="profile-status">{resumeReady ? "Analyzed" : "Not uploaded"}</strong>
-              <small>{resumeReady ? `${resumeSkills.length} detected skills` : "Choose a PDF resume"}</small>
-            </article>
-          </section>
-
-          <section className="resume-panel">
-            <div className="resume-panel-heading">
-              <div className="resume-heading-icon"><BrainCircuit size={22} /></div>
-              <div className="resume-heading-copy">
-                <h2>AI resume analysis</h2>
-                <p>
-                  {resumeReady
-                    ? `Analyzed ${resumeName}. Your extracted skills are ready for matching.`
-                    : "Upload your PDF to extract skills and compare your profile against jobs."}
-                </p>
-              </div>
-              {resumeReady && (
-                <span className="ready-badge"><CheckCircle2 size={14} /> Ready</span>
-              )}
-            </div>
-
-            {resumeLoading && (
-              <div className="inline-loading"><RefreshCw size={18} /> Reading and analyzing your PDF…</div>
-            )}
-
-            {resumeReady && (
-              <>
-                <div className="skill-tags resume-skill-tags">
-                  {resumeSkills.length > 0
-                    ? resumeSkills.map((skill) => <span key={skill}>{skill}</span>)
-                    : <span>No known skills detected. You can still use semantic matching.</span>}
-                </div>
-                <button
-                  type="button"
-                  className="text-button"
-                  onClick={() => setShowResumeDetails((current) => !current)}
-                >
-                  {showResumeDetails ? "Hide resume details" : "Show resume details"}
-                </button>
-                {showResumeDetails && (
-                  <div className="resume-details">
-                    <FileText size={16} />
-                    <span>{resumeName}</span>
-                    <span>{resumeText.length.toLocaleString()} characters extracted</span>
-                  </div>
+        <section className="resume-panel">
+          <div className="resume-icon">⇧</div>
+          <div className="resume-copy">
+            <h3>Make it personal with your resume</h3>
+            <p>
+              Upload a PDF to extract your skills and calculate similarity
+              scores against job descriptions.
+            </p>
+            {resumeName && (
+              <div className="resume-file">
+                <span>✓</span> {resumeName}
+                {resumeSkills.length > 0 && (
+                  <span className="skill-count">{resumeSkills.length} skills found</span>
                 )}
-              </>
-            )}
-
-            {!resumeReady && !resumeLoading && (
-              <div className="resume-empty">
-                <FileUser size={22} />
-                <span>Your resume stays in memory for this session and is not saved by this API.</span>
               </div>
             )}
-          </section>
+          </div>
+          <label className="upload-button">
+            {resumeLoading ? "Analyzing..." : resume ? "Change resume" : "Upload PDF resume"}
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={handleResumeUpload}
+              disabled={resumeLoading}
+            />
+          </label>
+        </section>
 
-          <section className="jobs-section">
-            <div className="section-heading">
-              <div>
-                <h2>Explore job platforms</h2>
-                <p>Search listings by source, then compare Remotive jobs against your resume.</p>
-              </div>
-              <span className="demo-pill">3 PLATFORMS</span>
-            </div>
+        {resumeError && <div className="message error-message">{resumeError}</div>}
 
-            <div className="platform-tabs" role="tablist" aria-label="Job platforms">
-              {platforms.map((platform) => (
-                <button
-                  key={platform.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={activePlatform === platform.id}
-                  className={`platform-tab ${activePlatform === platform.id ? "active" : ""}`}
-                  onClick={() => {
-                    setActivePlatform(platform.id);
-                    setError("");
-                  }}
-                >
-                  {platform.label}
-                  <span className="platform-mode">{platform.mode}</span>
-                </button>
+        {resumeSkills.length > 0 && (
+          <section className="skills-panel">
+            <h4>Skills detected in your resume</h4>
+            <div className="skill-list">
+              {resumeSkills.map((skill) => (
+                <span className="skill-chip" key={skill}>{skill}</span>
               ))}
             </div>
+          </section>
+        )}
 
-            {isExternal ? (
-              <div className="platform-search-card">
-                <div className="platform-icon"><Globe size={25} /></div>
-                <div className="platform-search-content">
-                  <h3>Search {currentPlatform?.label}</h3>
-                  <p>
-                    Search phrase: <strong>{search || query || "internship"}</strong>.
-                    This opens the platform's own search results. Listings are not
-                    imported into InternMatch AI, so in-app AI matching isn't available
-                    for these results yet.
-                  </p>
-                  <a className="apply-button" href={externalUrl(activePlatform)} target="_blank" rel="noopener noreferrer">
-                    Open {currentPlatform?.label} search <ExternalLink size={16} />
-                  </a>
-                </div>
+        {error && <div className="message error-message">{error}</div>}
+        {notice && <div className="notice-message">ⓘ {notice}</div>}
+
+        <section className="results-section">
+          <div className="results-heading">
+            <div>
+              <div className="results-title-row">
+                <h3>
+                  {activePlatform === "Saved"
+                    ? "Saved opportunities"
+                    : activePlatform === "Remotive"
+                    ? "Recommended opportunities"
+                    : `${activePlatform} search`}
+                </h3>
+                {activePlatform === "Remotive" && !loading && (
+                  <span className="result-count">{totalMatches} matches</span>
+                )}
               </div>
-            ) : (
-              <>
-                <p className="source-label">
-                  Remotive public API · Remote listings · Verify eligibility and availability on the original listing.
-                </p>
+              <p>
+                {activePlatform === "Saved"
+                  ? "Jobs you've bookmarked in this session."
+                  : activePlatform === "Remotive"
+                  ? "Results from the remote job listings provider."
+                  : `Search directly on ${activePlatform}; results open on its website.`}
+              </p>
+            </div>
+            {activePlatform === "Remotive" && (
+              <button
+                className="refresh-button"
+                onClick={() => fetchJobs(search)}
+                disabled={loading}
+              >
+                ↻ Refresh
+              </button>
+            )}
+          </div>
 
-                {error && (
-                  <div className="empty-state">
-                    <AlertCircle size={28} />
-                    <h3>Something went wrong</h3>
-                    <p>{error}</p>
-                    <button className="search-button" type="button" onClick={() => fetchJobs(search)}>
-                      Try again <RefreshCw size={16} />
-                    </button>
-                  </div>
-                )}
+          {activePlatform !== "Remotive" && activePlatform !== "Saved" ? (
+            <div className="external-card">
+              <div className="external-icon">↗</div>
+              <h4>Continue your search on {activePlatform}</h4>
+              <p>
+                This prototype opens the platform's own search page rather than
+                scraping or copying its listings into this dashboard.
+              </p>
+              <button onClick={handleSearch}>Open {activePlatform} search ↗</button>
+            </div>
+          ) : loading ? (
+            <div className="loading-state">
+              <div className="spinner" />
+              <h4>Finding opportunities...</h4>
+              <p>Searching the available listings for “{search}”.</p>
+            </div>
+          ) : displayedJobs.length === 0 ? (
+            <div className="empty-state">
+              <div>⌕</div>
+              <h4>No matching jobs found</h4>
+              <p>
+                Try a broader term like “python”, “developer”, or “data”.
+                Available listings depend on the source.
+              </p>
+              {activePlatform === "Saved" && (
+                <button onClick={() => setActivePlatform("Remotive")}>
+                  Discover jobs
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="job-list">
+              {displayedJobs.map((job) => {
+                const match = matches[job.id];
+                const isSaved = savedJobs.some((item) => item.id === job.id);
 
-                {loading && (
-                  <div className="empty-state">
-                    <RefreshCw size={28} />
-                    <h3>Finding opportunities…</h3>
-                    <p>Fetching results from Remotive.</p>
-                  </div>
-                )}
+                return (
+                  <article className="job-card" key={job.id}>
+                    <div className="job-card-top">
+                      <div className="company-avatar">
+                        {(job.company || "C").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="job-main-info">
+                        <h4>{job.title}</h4>
+                        <p>{job.company}</p>
+                      </div>
+                      <button
+                        className={`save-button ${isSaved ? "saved" : ""}`}
+                        onClick={() => toggleSaved(job)}
+                        title={isSaved ? "Remove saved job" : "Save job"}
+                        aria-label={isSaved ? "Remove saved job" : "Save job"}
+                      >
+                        {isSaved ? "♥" : "♡"}
+                      </button>
+                    </div>
 
-                {!loading && !error && (
-                  <div className="job-list">
-                    {jobs.map((job) => {
-                      const match = matches[job.id];
+                    <div className="job-metadata">
+                      <span>⌖ {job.location || "Remote"}</span>
+                      <span>▦ {job.job_type || "Type not specified"}</span>
+                      <span>◷ {formatDate(job.published)}</span>
+                    </div>
 
-                      return (
-                        <article className="job-card" key={job.id}>
-                          <div className="company-logo violet">
-                            {(job.company || "CO").slice(0, 2).toUpperCase()}
-                          </div>
+                    <p className="job-description">
+                      {job.description || "No description provided."}
+                    </p>
 
-                          <div className="job-main">
-                            <div className="company-name">{job.company}</div>
-                            <h3>{job.title}</h3>
-                            <div className="job-meta">
-                              <span><MapPin size={14} /> {job.location || "Remote"}</span>
-                              <span><Clock3 size={14} /> {job.job_type || "Not specified"}</span>
+                    <div className="job-tags">
+                      {job.category && <span>{job.category}</span>}
+                      {job.source && <span>{job.source}</span>}
+                      {job.salary && job.salary !== "Not specified" && (
+                        <span>{job.salary}</span>
+                      )}
+                    </div>
+
+                    {match && (
+                      <div className="match-panel">
+                        <div className="match-topline">
+                          <strong>Resume similarity</strong>
+                          <span>{Math.round(match.match_score)}%</span>
+                        </div>
+                        <div className="match-track">
+                          <div
+                            className="match-fill"
+                            style={{
+                              width: `${Math.max(0, Math.min(100, match.match_score))}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="match-disclaimer">
+                          Similarity score only — not a hiring probability.
+                        </p>
+
+                        {match.resume_skills?.length > 0 && (
+                          <>
+                            <small className="match-label">YOUR DETECTED SKILLS</small>
+                            <div className="skill-list">
+                              {match.resume_skills.map((skill) => (
+                                <span className="skill-chip" key={skill}>{skill}</span>
+                              ))}
                             </div>
+                          </>
+                        )}
 
-                            {job.salary && job.salary !== "Not specified" && (
-                              <p className="job-description"><strong>Salary:</strong> {job.salary}</p>
-                            )}
-
-                            {job.description && (
-                              <p className="job-description">
-                                {job.description.length > 260
-                                  ? `${job.description.slice(0, 260)}…`
-                                  : job.description}
-                              </p>
-                            )}
-
-                            {match && (
-                              <div className="match-result">
-                                <div className="match-result-top">
-                                  <span><BrainCircuit size={16} /> Resume similarity</span>
-                                  <strong>{match.match_score}%</strong>
-                                </div>
-                                <div className="match-track">
-                                  <div className="match-fill" style={{ width: `${match.match_score}%` }} />
-                                </div>
-                                <p>Detected skills in your resume: {match.resume_skills?.length || 0}</p>
-                                <div className="match-skill-group">
-                                  <strong>Skills found in listing</strong>
-                                  <div className="skill-tags">
-                                    {(match.job_skills || []).map((skill) => (
-                                      <span key={skill}>{skill}</span>
-                                    ))}
-                                    {(!match.job_skills || match.job_skills.length === 0) && <span>No known skills detected</span>}
-                                  </div>
-                                </div>
-                                <div className="match-skill-group">
-                                  <strong>Potential skills to develop</strong>
-                                  <div className="skill-tags missing-tags">
-                                    {(match.missing_skills || []).map((skill) => (
-                                      <span key={skill}>{skill}</span>
-                                    ))}
-                                    {(!match.missing_skills || match.missing_skills.length === 0) && <span>No missing skills detected by this basic skill scan</span>}
-                                  </div>
-                                </div>
-                                <small className="match-disclaimer">
-                                  Similarity is not a probability of getting hired. Skill detection uses a limited vocabulary.
-                                </small>
-                              </div>
-                            )}
-
-                            <div className="skill-tags">
-                              <span>{job.category || "General"}</span>
-                              <span>Remotive</span>
+                        {match.missing_skills?.length > 0 && (
+                          <>
+                            <small className="match-label missing-label">
+                              SKILLS TO CONSIDER LEARNING
+                            </small>
+                            <div className="skill-list">
+                              {match.missing_skills.map((skill) => (
+                                <span className="missing-chip" key={skill}>{skill}</span>
+                              ))}
                             </div>
-                            <span className="source-label">Source: Remotive · Check original listing for details</span>
-                          </div>
-
-                          <div className="job-side">
-                            {resumeReady ? (
-                              <button
-                                className="match-button"
-                                type="button"
-                                disabled={matchingId === job.id}
-                                onClick={() => calculateJobMatch(job)}
-                              >
-                                <BrainCircuit size={16} />
-                                {matchingId === job.id
-                                  ? "Matching…"
-                                  : match ? "Recalculate" : "Calculate match"}
-                              </button>
-                            ) : (
-                              <button
-                                className="save-button"
-                                type="button"
-                                onClick={() => {
-                                  setResumeError("Upload your PDF resume above to calculate job matches.");
-                                  document.querySelector(".resume-panel")?.scrollIntoView({ behavior: "smooth" });
-                                }}
-                              >
-                                <Upload size={16} /> Upload resume first
-                              </button>
-                            )}
-
-                            <button
-                              className={`save-button ${saved.includes(job.id) ? "saved" : ""}`}
-                              type="button"
-                              onClick={() => toggleSaved(job.id)}
-                            >
-                              <Bookmark size={16} />
-                              {saved.includes(job.id) ? "Saved" : "Save job"}
-                            </button>
-
-                            <a className="apply-button" href={job.url} target="_blank" rel="noopener noreferrer">
-                              View listing <ExternalLink size={15} />
-                            </a>
-                          </div>
-                        </article>
-                      );
-                    })}
-
-                    {jobs.length === 0 && (
-                      <div className="empty-state">
-                        <Search size={28} />
-                        <h3>No jobs found</h3>
-                        <p>Try Python, AI, data science, or another keyword.</p>
+                          </>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </>
-            )}
-          </section>
 
-          <footer className="footer">
-            <span>InternMatch AI · Applications of AI project</span>
-            <span><Activity size={14} /> {apiStatus} · Similarity scores are estimates</span>
-          </footer>
-        </div>
+                    <div className="job-actions">
+                      <button
+                        className="match-button"
+                        onClick={() => calculateJobMatch(job)}
+                        disabled={matchingJob === job.id || resumeLoading}
+                      >
+                        {matchingJob === job.id
+                          ? "Calculating..."
+                          : match
+                          ? "Recalculate match"
+                          : "✦ Calculate AI match"}
+                      </button>
+                      <a
+                        className="apply-button"
+                        href={job.url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View original listing ↗
+                      </a>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <footer className="page-footer">
+          <span>✦ InternMatch AI</span>
+          <span>Built to make your job search smarter.</span>
+        </footer>
       </main>
     </div>
   );
