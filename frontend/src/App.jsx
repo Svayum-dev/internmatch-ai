@@ -8,6 +8,7 @@ import {
   BriefcaseBusiness,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   FileUser,
   LayoutDashboard,
   MapPin,
@@ -16,72 +17,101 @@ import {
   Sparkles,
   Target,
   Upload,
+  RefreshCw,
+  AlertCircle,
+  Globe,
 } from "lucide-react";
 import "./App.css";
 
-const demoJobs = [
-  {
-    id: 1,
-    company: "NeuralWorks",
-    title: "Machine Learning Intern",
-    location: "Remote · India",
-    match: 94,
-    skills: ["Python", "PyTorch", "NLP"],
-    color: "violet",
-  },
-  {
-    id: 2,
-    company: "DataOrbit",
-    title: "AI Research Intern",
-    location: "Bengaluru, India",
-    match: 87,
-    skills: ["Python", "Deep Learning", "NumPy"],
-    color: "blue",
-  },
-  {
-    id: 3,
-    company: "CloudScale",
-    title: "Data Science Intern",
-    location: "Remote · India",
-    match: 81,
-    skills: ["SQL", "Pandas", "Statistics"],
-    color: "orange",
-  },
+const API_URL = "http://127.0.0.1:8000";
+
+const platforms = [
+  { id: "remotive", label: "Remotive", kind: "live" },
+  { id: "internshala", label: "Internshala", kind: "external" },
+  { id: "indeed", label: "Indeed", kind: "external" },
 ];
 
 function App() {
-  const [query, setQuery] = useState("");
-  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("machine learning internship");
+  const [search, setSearch] = useState("machine learning internship");
+  const [activePlatform, setActivePlatform] = useState("remotive");
+  const [jobs, setJobs] = useState([]);
   const [saved, setSaved] = useState([]);
   const [apiStatus, setApiStatus] = useState("Checking...");
   const [resumeName, setResumeName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function fetchJobs(term) {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/jobs?q=${encodeURIComponent(term)}&limit=20`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Job search failed (HTTP ${response.status}).`);
+      }
+
+      const data = await response.json();
+      setJobs(data.jobs || []);
+      setSearch(term);
+      setApiStatus("Connected");
+    } catch (err) {
+      setJobs([]);
+      setError(
+        err.message === "Failed to fetch"
+          ? "Cannot reach the backend. Check that FastAPI is running."
+          : err.message
+      );
+      setApiStatus("Offline");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/health")
+    fetch(`${API_URL}/health`)
       .then((response) => {
         if (!response.ok) throw new Error("Backend unavailable");
         return response.json();
       })
-      .then((data) => {
-        setApiStatus(data.status === "healthy" ? "Connected" : "Unavailable");
-      })
+      .then((data) =>
+        setApiStatus(data.status === "healthy" ? "Connected" : "Unavailable")
+      )
       .catch(() => setApiStatus("Offline"));
+
+    fetchJobs("machine learning internship");
   }, []);
-
-  const filteredJobs = demoJobs.filter((job) => {
-    const searchable = [
-      job.title,
-      job.company,
-      job.location,
-      ...job.skills,
-    ].join(" ").toLowerCase();
-
-    return searchable.includes(search.toLowerCase());
-  });
 
   function handleSearch(event) {
     event.preventDefault();
-    setSearch(query.trim());
+
+    const term = query.trim();
+    if (term.length < 2) {
+      setError("Enter at least two characters.");
+      return;
+    }
+
+    setSearch(term);
+
+    if (activePlatform === "remotive") {
+      fetchJobs(term);
+    } else {
+      setError("");
+    }
+  }
+
+  function getExternalSearchUrl(platform) {
+    const term = encodeURIComponent(search || query || "internship");
+
+    if (platform === "internshala") {
+      return `https://internshala.com/internships/keywords-${encodeURIComponent(search || query || "internship").replace(/%20/g, "-")}/`;
+    }
+
+    return `https://in.indeed.com/jobs?q=${term}&l=India`;
   }
 
   function toggleSaved(id) {
@@ -91,6 +121,8 @@ function App() {
         : [...current, id]
     );
   }
+
+  const externalPlatform = activePlatform !== "remotive";
 
   return (
     <div className="app-shell">
@@ -106,17 +138,29 @@ function App() {
         <p className="workspace-label">WORKSPACE</p>
 
         <nav className="side-nav">
-          <button className="nav-item active">
+          <button className="nav-item active" type="button">
             <LayoutDashboard size={18} /> Overview
           </button>
-          <button className="nav-item">
-            <Search size={18} /> Find internships
+          <button
+            className="nav-item"
+            type="button"
+            onClick={() =>
+              document.querySelector(".jobs-section")?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
+            <Search size={18} /> Find opportunities
           </button>
-          <button className="nav-item">
+          <button className="nav-item" type="button">
             <FileUser size={18} /> Resume analysis
           </button>
-          <button className="nav-item">
-            <BriefcaseBusiness size={18} /> My applications
+          <button
+            className="nav-item"
+            type="button"
+            onClick={() =>
+              document.querySelector(".jobs-section")?.scrollIntoView({ behavior: "smooth" })
+            }
+          >
+            <BriefcaseBusiness size={18} /> Saved jobs
             {saved.length > 0 && <span className="nav-count">{saved.length}</span>}
           </button>
         </nav>
@@ -131,7 +175,7 @@ function App() {
             <Settings size={17} />
           </div>
           <div className="sidebar-help">
-            <CheckCircle2 size={16} /> Project demo · v0.1
+            <CheckCircle2 size={16} /> Multi-platform search · v0.3
           </div>
         </div>
       </aside>
@@ -141,10 +185,9 @@ function App() {
           <div className="breadcrumbs">Workspace / <strong>Overview</strong></div>
           <div className="topbar-actions">
             <span className={`connection ${apiStatus === "Connected" ? "connected" : ""}`}>
-              <span className="status-dot" />
-              API {apiStatus}
+              <span className="status-dot" /> API {apiStatus}
             </span>
-            <button className="icon-button" aria-label="Notifications">
+            <button className="icon-button" aria-label="Notifications" type="button">
               <Bell size={19} />
             </button>
             <div className="top-avatar">IM</div>
@@ -159,13 +202,13 @@ function App() {
               </div>
               <h1>Find work that fits <span>your potential.</span></h1>
               <p className="subtitle">
-                Discover opportunities aligned with your skills and ambitions.
+                Search opportunities across multiple job platforms from one workspace.
               </p>
             </div>
 
             <label className="resume-button">
               <Upload size={17} />
-              {resumeName ? "Resume selected" : "Upload resume"}
+              {resumeName ? "Resume selected" : "Choose resume"}
               <input
                 type="file"
                 accept=".pdf"
@@ -182,47 +225,48 @@ function App() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search job titles, skills or keywords..."
+                placeholder="Search internships, Python, AI, data science..."
               />
             </div>
             <div className="search-divider" />
             <div className="location-field">
               <MapPin size={18} /> India / Remote
             </div>
-            <button className="search-button" type="submit">
-              Search jobs <ArrowRight size={17} />
+            <button className="search-button" type="submit" disabled={loading}>
+              {loading && activePlatform === "remotive" ? "Searching..." : "Search jobs"}
+              {loading && activePlatform === "remotive"
+                ? <RefreshCw size={17} />
+                : <ArrowRight size={17} />}
             </button>
           </form>
 
           <section className="stats-grid">
             <article className="stat-card">
               <div className="stat-top">
-                <span>Demo opportunities</span>
-                <BriefcaseBusiness size={19} />
+                <span>Remotive results</span><BriefcaseBusiness size={19} />
               </div>
-              <strong>128</strong>
-              <small>Sample dashboard metric</small>
+              <strong>{loading ? "…" : jobs.length}</strong>
+              <small>Live API results for the current query</small>
             </article>
             <article className="stat-card">
               <div className="stat-top">
-                <span>Strong matches</span>
-                <Target size={19} />
+                <span>Active platform</span><Globe size={19} />
               </div>
-              <strong>24</strong>
-              <small>Sample dashboard metric</small>
+              <strong className="profile-status">
+                {platforms.find((p) => p.id === activePlatform)?.label}
+              </strong>
+              <small>Selected source</small>
             </article>
             <article className="stat-card">
               <div className="stat-top">
-                <span>Saved jobs</span>
-                <Bookmark size={19} />
+                <span>Saved jobs</span><Bookmark size={19} />
               </div>
               <strong>{saved.length}</strong>
               <small>Saved in this session</small>
             </article>
             <article className="stat-card">
               <div className="stat-top">
-                <span>Resume status</span>
-                <FileUser size={19} />
+                <span>Resume status</span><FileUser size={19} />
               </div>
               <strong className="profile-status">
                 {resumeName ? "Selected" : "Not uploaded"}
@@ -234,66 +278,155 @@ function App() {
           <section className="jobs-section">
             <div className="section-heading">
               <div>
-                <h2>Recommended internships</h2>
-                <p>Sample listings while we build live job discovery.</p>
+                <h2>Explore job platforms</h2>
+                <p>Choose a source to search internships and jobs.</p>
               </div>
-              <span className="demo-pill">DEMO DATA</span>
+              <span className="demo-pill">3 PLATFORMS</span>
             </div>
 
-            <div className="job-list">
-              {filteredJobs.map((job) => (
-                <article className="job-card" key={job.id}>
-                  <div className={`company-logo ${job.color}`}>
-                    {job.company.slice(0, 2).toUpperCase()}
-                  </div>
+            <div className="platform-tabs" role="tablist" aria-label="Job platforms">
+              {platforms.map((platform) => (
+                <button
+                  key={platform.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activePlatform === platform.id}
+                  className={`platform-tab ${activePlatform === platform.id ? "active" : ""}`}
+                  onClick={() => {
+                    setActivePlatform(platform.id);
+                    setError("");
+                  }}
+                >
+                  {platform.label}
+                  <span className="platform-mode">
+                    {platform.kind === "live" ? "Live API" : "Website search"}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-                  <div className="job-main">
-                    <div className="company-name">{job.company}</div>
-                    <h3>{job.title}</h3>
-                    <div className="job-meta">
-                      <span><MapPin size={14} /> {job.location}</span>
-                      <span><Clock3 size={14} /> Internship</span>
-                    </div>
-                    <p className="job-description">
-                      An illustrative role for previewing the job discovery experience.
-                    </p>
-                    <div className="skill-tags">
-                      {job.skills.map((skill) => <span key={skill}>{skill}</span>)}
-                    </div>
-                    <span className="source-label">Demo listing · Not a live vacancy</span>
-                  </div>
+            {externalPlatform ? (
+              <div className="platform-search-card">
+                <div className="platform-icon"><Globe size={25} /></div>
+                <div className="platform-search-content">
+                  <h3>Search {platforms.find((p) => p.id === activePlatform)?.label}</h3>
+                  <p>
+                    Your search is <strong>{search || query || "internship"}</strong>.
+                    Open the platform to browse its current listings and apply there.
+                    Results are provided by the platform itself; InternMatch AI does not
+                    scrape or copy its listings.
+                  </p>
+                  <a
+                    className="apply-button"
+                    href={getExternalSearchUrl(activePlatform)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open {platforms.find((p) => p.id === activePlatform)?.label} search
+                    <ExternalLink size={16} />
+                  </a>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="source-label">
+                  Remotive public API · Remote listings only · Original source links are included
+                </p>
 
-                  <div className="job-side">
-                    <div className="match-ring" style={{ "--score": `${job.match}%` }}>
-                      <div>
-                        <strong>{job.match}%</strong>
-                        <span>Demo match</span>
-                      </div>
-                    </div>
+                {error && (
+                  <div className="empty-state">
+                    <AlertCircle size={28} />
+                    <h3>Couldn't load jobs</h3>
+                    <p>{error}</p>
                     <button
-                      className={`save-button ${saved.includes(job.id) ? "saved" : ""}`}
-                      onClick={() => toggleSaved(job.id)}
+                      className="search-button"
+                      type="button"
+                      onClick={() => fetchJobs(search || "internship")}
                     >
-                      <Bookmark size={16} />
-                      {saved.includes(job.id) ? "Saved" : "Save job"}
+                      Try again <RefreshCw size={16} />
                     </button>
                   </div>
-                </article>
-              ))}
+                )}
 
-              {filteredJobs.length === 0 && (
-                <div className="empty-state">
-                  <Search size={28} />
-                  <h3>No matching demo jobs</h3>
-                  <p>Try Python, machine learning, AI, SQL or data science.</p>
-                </div>
-              )}
-            </div>
+                {loading && (
+                  <div className="empty-state">
+                    <RefreshCw size={28} />
+                    <h3>Finding opportunities…</h3>
+                    <p>Fetching search results from Remotive.</p>
+                  </div>
+                )}
+
+                {!loading && !error && (
+                  <div className="job-list">
+                    {jobs.map((job) => (
+                      <article className="job-card" key={job.id}>
+                        <div className="company-logo violet">
+                          {(job.company || "CO").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="job-main">
+                          <div className="company-name">{job.company}</div>
+                          <h3>{job.title}</h3>
+                          <div className="job-meta">
+                            <span><MapPin size={14} /> {job.location || "Remote"}</span>
+                            <span><Clock3 size={14} /> {job.job_type || "Not specified"}</span>
+                          </div>
+                          {job.salary && job.salary !== "Not specified" && (
+                            <p className="job-description">
+                              <strong>Salary:</strong> {job.salary}
+                            </p>
+                          )}
+                          {job.description && (
+                            <p className="job-description">
+                              {job.description.length > 260
+                                ? `${job.description.slice(0, 260)}…`
+                                : job.description}
+                            </p>
+                          )}
+                          <div className="skill-tags">
+                            <span>{job.category || "General"}</span>
+                            <span>Remotive</span>
+                          </div>
+                          <span className="source-label">
+                            Source: Remotive · Verify eligibility on the original listing
+                          </span>
+                        </div>
+                        <div className="job-side">
+                          <button
+                            className={`save-button ${saved.includes(job.id) ? "saved" : ""}`}
+                            type="button"
+                            onClick={() => toggleSaved(job.id)}
+                          >
+                            <Bookmark size={16} />
+                            {saved.includes(job.id) ? "Saved" : "Save job"}
+                          </button>
+                          <a
+                            className="apply-button"
+                            href={job.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View listing <ExternalLink size={15} />
+                          </a>
+                        </div>
+                      </article>
+                    ))}
+
+                    {jobs.length === 0 && (
+                      <div className="empty-state">
+                        <Search size={28} />
+                        <h3>No jobs found</h3>
+                        <p>Try Python, AI, data science, or another keyword.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </section>
 
           <footer className="footer">
             <span>InternMatch AI · Applications of AI project</span>
-            <span><Activity size={14} /> {apiStatus}</span>
+            <span><Activity size={14} /> {apiStatus} · Verify listings at source</span>
           </footer>
         </div>
       </main>

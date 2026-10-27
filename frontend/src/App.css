@@ -837,3 +837,136 @@ button {
     flex-direction: column;
   }
 }
+
+/* Multi-platform job search tabs */
+.platform-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 22px 0 18px;
+  padding-bottom: 4px;
+}
+
+.platform-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 150px;
+  padding: 13px 17px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.platform-tab:hover {
+  border-color: #b9afff;
+}
+
+.platform-tab.active {
+  border-color: #7967ed;
+  background: #f2efff;
+  color: #5b45cc;
+  box-shadow: 0 0 0 1px #7967ed inset;
+}
+
+.platform-mode {
+  font-size: 11px;
+  font-weight: 500;
+  color: #73758a;
+}
+
+.platform-search-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 25px;
+  margin: 10px 0 24px;
+  border: 1px solid #e7e8f0;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.platform-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 13px;
+  background: #f0edff;
+  color: #6d5ce8;
+}
+
+.platform-search-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.platform-search-content h3 {
+  margin: 0 0 9px;
+  color: #20243a;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.platform-search-content p {
+  margin: 0 0 18px;
+  color: #686b7e;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.apply-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: #6d5ce8;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.apply-button:hover {
+  background: #5947d1;
+  transform: translateY(-1px);
+}
+
+.search-button:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+@media (max-width: 640px) {
+  .platform-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .platform-tab {
+    width: 100%;
+  }
+
+  .platform-search-card {
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  .job-card {
+    flex-wrap: wrap;
+  }
+}
